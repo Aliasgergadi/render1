@@ -1,77 +1,13 @@
-require("dotenv").config();
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const cors = require("cors");
-const path = require("path");
-
-const PORT = process.env.PORT || 3000;
-
-const app = express();
-const server = http.createServer(app);
-
-/* =======================
-   MIDDLEWARE
-======================= */
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
-
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
-
-/* =======================
-   HEALTH + KEEPALIVE
-======================= */
-
-// Used by uptime monitor
-app.get("/ping", (req, res) => {
-  res.status(200).send("pong");
-});
-
-// Useful for debugging server health
-app.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-    uptime: process.uptime(),
-    timestamp: Date.now()
-  });
-});
-
-/* =======================
-   SOCKET.IO
-======================= */
-const io = new Server(server, {
-  cors: {
-    origin: true,
-    methods: ["GET", "POST"],
-    credentials: true
-  }
-});
-
-/* =======================
-   STATE
-======================= */
-const users = {}; // socketId -> { name, email }
+const users = {}; 
 let adminSocketId = null;
 
-/* =======================
-   HELPERS
-======================= */
-const normalizeEmail = e => String(e || "").toLowerCase().trim();
-
-/* =======================
-   CONNECTION
-======================= */
 io.on("connection", socket => {
 
   console.log("Client connected:", socket.id);
 
-  /* -------- USER REGISTER -------- */
+  /* USER REGISTER */
   socket.on("register session", ({ email, name }, ack) => {
-
-    email = normalizeEmail(email);
+    email = (email || "").toLowerCase().trim();
 
     if (!email || !name) {
       return ack?.({ success: false });
@@ -90,26 +26,24 @@ io.on("connection", socket => {
     ack?.({ success: true });
   });
 
-  /* -------- USER MESSAGE -------- */
+  /* USER → ADMIN */
   socket.on("chat message", text => {
-
     if (!users[socket.id]) return;
+    if (!text || !text.trim()) return;
 
     const msg = {
       userId: socket.id,
       name: users[socket.id].name,
-      text: String(text || "")
+      text: text.trim()
     };
 
     if (adminSocketId) {
       io.to(adminSocketId).emit("chat message", msg);
     }
-
   });
 
-  /* -------- ADMIN REGISTER -------- */
+  /* ADMIN REGISTER */
   socket.on("register admin", () => {
-
     adminSocketId = socket.id;
 
     const activeUsers = Object.entries(users).map(([id, u]) => ({
@@ -119,25 +53,35 @@ io.on("connection", socket => {
     }));
 
     io.to(adminSocketId).emit("current users", activeUsers);
-
   });
 
-  /* -------- ADMIN TO USER -------- */
+  /* ADMIN → USER */
   socket.on("chat to user", ({ userId, message }) => {
-
-    if (!userId) return;
+    if (!userId || !message) return;
 
     io.to(userId).emit("chat message", {
       userId: "admin",
       name: "Admin",
       text: message
     });
-
   });
 
-  /* -------- DISCONNECT -------- */
-  socket.on("disconnect", () => {
+  /* PUBLIC CHAT */
+  socket.on("public message", msg => {
+    io.emit("public message", msg);
 
+    // ALSO SEND TO ADMIN
+    if (adminSocketId) {
+      io.to(adminSocketId).emit("chat message", {
+        userId: socket.id,
+        name: msg.name,
+        text: msg.text
+      });
+    }
+  });
+
+  /* DISCONNECT */
+  socket.on("disconnect", () => {
     delete users[socket.id];
 
     if (adminSocketId) {
@@ -151,14 +95,6 @@ io.on("connection", socket => {
     }
 
     console.log("Client disconnected:", socket.id);
-
   });
 
-});
-
-/* =======================
-   START SERVER
-======================= */
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
 });
