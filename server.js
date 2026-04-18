@@ -4,70 +4,30 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
-const path = require("path");
-
-const PORT = process.env.PORT || 3000;
 
 const app = express();
 const server = http.createServer(app);
 
-/* =======================
-   MIDDLEWARE
-======================= */
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
-
+app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
 
-/* =======================
-   ROUTES
-======================= */
-app.get("/ping", (req, res) => {
-  res.send("pong");
-});
-
-app.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-    uptime: process.uptime(),
-    timestamp: Date.now()
-  });
-});
-
-/* =======================
-   SOCKET.IO (IMPORTANT)
-======================= */
 const io = new Server(server, {
-  cors: {
-    origin: true,
-    methods: ["GET", "POST"],
-    credentials: true
-  }
+  cors: { origin: "*", methods: ["GET","POST"] }
 });
 
-/* =======================
-   STATE
-======================= */
+/* STATE */
 const users = {};
+const messages = {}; // IMPORTANT
 let adminSocketId = null;
 
-/* =======================
-   CONNECTION
-======================= */
+/* SOCKET */
 io.on("connection", socket => {
 
-  console.log("Client connected:", socket.id);
+  console.log("Connected:", socket.id);
 
   /* USER REGISTER */
-  socket.on("register session", ({ email, name }, ack) => {
-    email = (email || "").toLowerCase().trim();
-
-    if (!email || !name) {
-      return ack?.({ success: false });
-    }
+  socket.on("register session", ({ name, email }) => {
+    if (!name || !email) return;
 
     users[socket.id] = { name, email };
 
@@ -78,20 +38,21 @@ io.on("connection", socket => {
         email
       });
     }
-
-    ack?.({ success: true });
   });
 
   /* USER → ADMIN */
   socket.on("chat message", text => {
     if (!users[socket.id]) return;
-    if (!text || !text.trim()) return;
 
     const msg = {
       userId: socket.id,
       name: users[socket.id].name,
-      text: text.trim()
+      text,
+      from: "user"
     };
+
+    if (!messages[socket.id]) messages[socket.id] = [];
+    messages[socket.id].push(msg);
 
     if (adminSocketId) {
       io.to(adminSocketId).emit("chat message", msg);
@@ -102,37 +63,33 @@ io.on("connection", socket => {
   socket.on("register admin", () => {
     adminSocketId = socket.id;
 
-    const activeUsers = Object.entries(users).map(([id, u]) => ({
+    const list = Object.entries(users).map(([id,u]) => ({
       userId: id,
       name: u.name,
       email: u.email
     }));
 
-    io.to(adminSocketId).emit("current users", activeUsers);
+    io.to(socket.id).emit("current users", list);
   });
 
   /* ADMIN → USER */
   socket.on("chat to user", ({ userId, message }) => {
-    if (!userId || !message) return;
-
-    io.to(userId).emit("chat message", {
+    const msg = {
       userId: "admin",
       name: "Admin",
-      text: message
-    });
+      text: message,
+      from: "admin"
+    };
+
+    if (!messages[userId]) messages[userId] = [];
+    messages[userId].push(msg);
+
+    io.to(userId).emit("chat message", msg);
   });
 
-  /* PUBLIC CHAT */
-  socket.on("public message", msg => {
-    io.emit("public message", msg);
-
-    if (adminSocketId) {
-      io.to(adminSocketId).emit("chat message", {
-        userId: socket.id,
-        name: msg.name,
-        text: msg.text
-      });
-    }
+  /* HISTORY */
+  socket.on("get history", userId => {
+    socket.emit("history", messages[userId] || []);
   });
 
   /* DISCONNECT */
@@ -148,15 +105,10 @@ io.on("connection", socket => {
     if (socket.id === adminSocketId) {
       adminSocketId = null;
     }
-
-    console.log("Client disconnected:", socket.id);
   });
 
 });
 
-/* =======================
-   START SERVER
-======================= */
-server.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+server.listen(3000, () => {
+  console.log("Server running on 3000");
 });
