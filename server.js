@@ -45,23 +45,30 @@ socket.on("register session", ({ name, email }, callback) => {
 });
 
   /* USER → ADMIN */
-  socket.on("chat message", text => {
-    if (!users[socket.id]) return;
+socket.on("chat message", text => {
+  console.log("User sent:", text);
 
-    const msg = {
-      userId: socket.id,
-      name: users[socket.id].name,
-      text,
-      from: "user"
-    };
+  if (!users[socket.id]) {
+    console.log("User not registered");
+    return;
+  }
 
-    if (!messages[socket.id]) messages[socket.id] = [];
-    messages[socket.id].push(msg);
+  const msg = {
+    userId: socket.id,
+    name: users[socket.id].name,
+    text,
+    from: "user"
+  };
 
-    if (adminSocketId) {
-      io.to(adminSocketId).emit("chat message", msg);
-    }
-  });
+  if (!messages[socket.id]) messages[socket.id] = [];
+  messages[socket.id].push(msg);
+
+  console.log("Admin socket:", adminSocketId);
+
+  if (adminSocketId) {
+    io.to(adminSocketId).emit("chat message", msg);
+  }
+});
 
   /* ADMIN REGISTER */
   socket.on("register admin", () => {
