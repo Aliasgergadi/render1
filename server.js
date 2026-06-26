@@ -28,7 +28,10 @@ io.on("connection", socket => {
   /* USER REGISTER */
 socket.on("register session", ({ name, email }, callback) => {
   if (!name || !email) {
-    return callback({ success: false, message: "Missing details" });
+    if (typeof callback === "function") {
+      callback({ success: false, message: "Missing details" });
+    }
+    return;
   }
 
   users[socket.id] = { name, email };
@@ -41,7 +44,9 @@ socket.on("register session", ({ name, email }, callback) => {
     });
   }
 
-  callback({ success: true });
+  if (typeof callback === "function") {
+    callback({ success: true });
+  }
 });
 
   /* USER → ADMIN */
