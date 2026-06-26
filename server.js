@@ -26,19 +26,23 @@ io.on("connection", socket => {
   console.log("Connected:", socket.id);
 
   /* USER REGISTER */
-  socket.on("register session", ({ name, email }) => {
-    if (!name || !email) return;
+socket.on("register session", ({ name, email }, callback) => {
+  if (!name || !email) {
+    return callback({ success: false, message: "Missing details" });
+  }
 
-    users[socket.id] = { name, email };
+  users[socket.id] = { name, email };
 
-    if (adminSocketId) {
-      io.to(adminSocketId).emit("new user", {
-        userId: socket.id,
-        name,
-        email
-      });
-    }
-  });
+  if (adminSocketId) {
+    io.to(adminSocketId).emit("new user", {
+      userId: socket.id,
+      name,
+      email
+    });
+  }
+
+  callback({ success: true });
+});
 
   /* USER → ADMIN */
   socket.on("chat message", text => {
