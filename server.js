@@ -34,7 +34,14 @@ socket.on("register session", ({ name, email }, callback) => {
     return;
   }
 
-  users[socket.id] = { name, email };
+  users[socket.id] = {   name,   email,   joined: Date.now(),   page: "Live Stream" };
+  io.emit("online users", Object.entries(users).map(([id,user])=>({
+    id,
+    name:user.name,
+    email:user.email,
+    joined:user.joined,
+    page:user.page
+})));
 
   if (adminSocketId) {
     io.to(adminSocketId).emit("new user", {
@@ -47,6 +54,21 @@ socket.on("register session", ({ name, email }, callback) => {
   if (typeof callback === "function") {
     callback({ success: true });
   }
+  /* SEND ONLINE USERS */
+socket.on("get online users", () => {
+
+  const list = Object.entries(users).map(([id, user]) => ({
+    id,
+    name: user.name,
+    email: user.email,
+    joined: user.joined,
+    page: user.page
+  }));
+
+  socket.emit("online users", list);
+
+});
+  
 });
 
   /* USER → ADMIN */
@@ -111,6 +133,13 @@ socket.on("chat message", text => {
   /* DISCONNECT */
   socket.on("disconnect", () => {
     delete users[socket.id];
+    io.emit("online users", Object.entries(users).map(([id,user])=>({
+    id,
+    name:user.name,
+    email:user.email,
+    joined:user.joined,
+    page:user.page
+})));
 
     if (adminSocketId) {
       io.to(adminSocketId).emit("user disconnected", {
