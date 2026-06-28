@@ -55,6 +55,15 @@ socket.on("register session", ({ name, email }, callback) => {
     callback({ success: true });
   }
   /* SEND ONLINE USERS */
+socket.on("register session", ({ name, email }, callback) => {
+  // registration code...
+
+  if (typeof callback === "function") {
+    callback({ success: true });
+  }
+}); // <-- register session ends here
+
+/* SEND ONLINE USERS */
 socket.on("get online users", () => {
 
   const list = Object.entries(users).map(([id, user]) => ({
@@ -67,8 +76,6 @@ socket.on("get online users", () => {
 
   socket.emit("online users", list);
 
-});
-  
 });
 
   /* USER → ADMIN */
