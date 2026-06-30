@@ -132,13 +132,18 @@ io.on("connection", (socket) => {
   socket.on("get history", (userId) => {
     socket.emit("history", messages[userId] || []);
   });
-  socket.on("send popup", ({ title, message }) => {
+/* EMERGENCY POPUP */
+socket.on("send popup", ({ title, message }) => {
+
+  if (!title || !message) return;
 
   io.emit("show popup", {
-    title,
-    message,
+    title: title.trim(),
+    message: message.trim(),
     time: Date.now()
   });
+
+  console.log("🚨 Popup sent:", title);
 
 });
   /* DISCONNECT */
