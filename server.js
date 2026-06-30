@@ -66,7 +66,19 @@ io.on("connection", (socket) => {
       callback({ success: true });
     }
   });
+/* BABY NAME REVEAL */
+socket.on("reveal name", ({ name }) => {
 
+  if (!name) return;
+
+  io.emit("show name reveal", {
+    name: name.trim(),
+    time: Date.now()
+  });
+
+  console.log("👶 Baby Name Revealed:", name);
+
+});
   /* GET ONLINE USERS */
   socket.on("get online users", () => {
     const list = Object.entries(users).map(([id, user]) => ({
