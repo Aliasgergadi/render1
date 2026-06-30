@@ -67,17 +67,8 @@ io.on("connection", (socket) => {
     }
   });
 /* BABY NAME REVEAL */
-socket.on("reveal name", ({ name }) => {
-
-  if (!name) return;
-
-  io.emit("show name reveal", {
-    name: name.trim(),
-    time: Date.now()
-  });
-
-  console.log("👶 Baby Name Revealed:", name);
-
+  socket.on("reveal name", (name) => {
+    io.emit("show name", name);
 });
   /* GET ONLINE USERS */
   socket.on("get online users", () => {
