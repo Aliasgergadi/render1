@@ -132,7 +132,15 @@ io.on("connection", (socket) => {
   socket.on("get history", (userId) => {
     socket.emit("history", messages[userId] || []);
   });
+  socket.on("send popup", ({ title, message }) => {
 
+  io.emit("show popup", {
+    title,
+    message,
+    time: Date.now()
+  });
+
+});
   /* DISCONNECT */
   socket.on("disconnect", () => {
     delete users[socket.id];
