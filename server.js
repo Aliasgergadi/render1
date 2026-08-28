@@ -20,6 +20,16 @@ let adminSocketId = null;
 // get history instead of a blank box.
 const PUBLIC_HISTORY_LIMIT = 200;
 const publicMessages = [];
+let nextPublicMsgId = 1;
+
+// NEW: shared secret the moderation page must send with every admin
+// action. Set ADMIN_KEY in your .env in production — this fallback is
+// only here so it still runs if you forget, don't ship it as-is.
+const ADMIN_KEY = process.env.ADMIN_KEY || "changeme";
+
+function isValidAdminKey(key) {
+  return typeof key === "string" && key === ADMIN_KEY;
+}
 
 function broadcastOnlineUsers() {
   const list = Object.entries(users).map(([id, user]) => ({
@@ -91,6 +101,7 @@ io.on("connection", (socket) => {
     if (!text) return;
 
     const msg = {
+      id: nextPublicMsgId++,
       userId: socket.id,
       name,
       text,
@@ -103,6 +114,52 @@ io.on("connection", (socket) => {
     }
 
     io.emit("public message", msg); // broadcast to everyone, including sender
+  });
+
+  /* NEW: ADMIN MODERATION OF PUBLIC CHAT */
+
+  // Fetch the current list so the moderation page can render checkboxes.
+  socket.on("admin get public messages", ({ key } = {}, callback) => {
+    if (!isValidAdminKey(key)) {
+      if (typeof callback === "function") callback({ success: false, message: "Invalid admin key" });
+      return;
+    }
+    if (typeof callback === "function") callback({ success: true, messages: publicMessages });
+  });
+
+  // Delete a specific set of messages by id, then tell every connected
+  // page (including the live stream chat, if it's re-enabled) to drop
+  // them too, so nobody sees stale copies.
+  socket.on("admin delete public messages", ({ key, ids } = {}, callback) => {
+    if (!isValidAdminKey(key)) {
+      if (typeof callback === "function") callback({ success: false, message: "Invalid admin key" });
+      return;
+    }
+    const idSet = new Set(Array.isArray(ids) ? ids : []);
+    if (idSet.size === 0) {
+      if (typeof callback === "function") callback({ success: false, message: "No message ids provided" });
+      return;
+    }
+
+    for (let i = publicMessages.length - 1; i >= 0; i--) {
+      if (idSet.has(publicMessages[i].id)) {
+        publicMessages.splice(i, 1);
+      }
+    }
+
+    io.emit("public messages deleted", Array.from(idSet));
+    if (typeof callback === "function") callback({ success: true, messages: publicMessages });
+  });
+
+  // Wipe the whole public chat history.
+  socket.on("admin clear public chat", ({ key } = {}, callback) => {
+    if (!isValidAdminKey(key)) {
+      if (typeof callback === "function") callback({ success: false, message: "Invalid admin key" });
+      return;
+    }
+    publicMessages.length = 0;
+    io.emit("public chat cleared");
+    if (typeof callback === "function") callback({ success: true });
   });
 
   /* USER -> ADMIN (private chat) */
